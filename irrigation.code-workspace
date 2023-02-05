@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "ValveRelay"
+		},
+		{
+			"path": "MoistureSensor"
 		}
 	],
 	"settings": {
