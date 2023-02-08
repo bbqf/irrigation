@@ -15,10 +15,10 @@
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP 60       /* Time ESP32 will go to sleep (in seconds) */
 #define TIME_TO_COMM 3
-#define UPDATE_EVERY 10 // How often to send updates in seconds
+#define UPDATE_EVERY 1800 // How often to send updates in seconds
 
-const int AirValue = 2500;   //you need to replace this value with Value_1
-const int WaterValue = 1300;  //you need to replace this value with Value_2
+const int AirValue = 1800;   //you need to replace this value with Value_1
+const int WaterValue = 850;  //you need to replace this value with Value_2
 
 const int BatteryFullValue = 2350;  // Abs reading of full battery
 const int BatteryChargingValue = 2110;  // Abs reading of the battery when charging (from empty) starts
@@ -37,21 +37,16 @@ float convertBatteryAbsToV(int batteryAbs) {
   return ((float)(batteryAbs - BatteryCorrectionValue)*2/1000);
 }
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-  uint8_t temprature_sens_read();
-
-#ifdef __cplusplus
-}
-#endif
-
 time_t lastStatusSent;
 
 int convertSensorRel(int val) {
-  return(map(val, AirValue, WaterValue, 0, 100));
+  int mapped = map(val, AirValue, WaterValue, 0, 100);
+  if (mapped < 0) {
+    mapped = 0;
+  } else if (mapped > 100) {
+    mapped = 100;
+  }
+  return(mapped);
 }
 
 int readSensorAbs() {
@@ -106,7 +101,7 @@ void sendStatus() {
 
   lastStatusSent = getEpochTime();
   doc["time"] = lastStatusSent;
-  doc["temperature"] = String((float)(temprature_sens_read() - 32) * 5 / 9, 1);
+  doc["temperature"] = String(temperatureRead(), 1);
   int moisture = readSensorAbs();
   doc["moistureAbs"] = moisture;
   doc["moisture"] = convertSensorRel(moisture);
@@ -135,7 +130,7 @@ void setup()
   log_d("Enter");
   // put your setup code here, to run once:
 
-#if ARDUHAL_LOG_LEVEL > ARDUHAL_LOG_LEVEL_DEBUG
+#if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_DEBUG
   // In Debug mode we assume the battery is not connected (while USB is) and disable sleep on enpty battery
   if (getOperationalStatus() == OP_EMPTY) {
     log_e("Battery empty! Deep Sleep for %d seconds", TIME_TO_SLEEP);
