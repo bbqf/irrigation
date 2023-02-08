@@ -24,17 +24,17 @@ const int BatteryFullValue = 2350;  // Abs reading of full battery
 const int BatteryChargingValue = 2110;  // Abs reading of the battery when charging (from empty) starts
 const int BatteryEmptyValue = 1900;  // Abs reading of an empty battery = shutdown now!
 
-const int BatteryCorrectionValue = 252; // Correction for Abs to V conversion - might be dependent on the hardware
+const int BatteryCorrectionValue = 297; // Correction for Abs to V conversion - might be dependent on the hardware
 
-enum OpStatus {
+typedef  enum  {
   OP_EMPTY,
   OP_CHARGING,
   OP_DISCHARGING,
   OP_FULL
-}
+} OpStatus;
 
 float convertBatteryAbsToV(int batteryAbs) {
-  return ((batteryAbs - BatteryCorrectionValue)*2/1000);
+  return ((float)(batteryAbs - BatteryCorrectionValue)*2/1000);
 }
 
 #ifdef __cplusplus
@@ -87,14 +87,15 @@ const OpStatus getOperationalStatus() {
 }
 
 const char * convertOpStatusToString(OpStatus status) {
-  char *ret = "";
 
   switch (status) {
-    case OP_EMPTY: ret = "Empty"; break;
-    case OP_CHARGING: ret = "Charging"; break;
-    case OP_DISCHARGING: ret = "Discharging"; break;
-    case OP_FULL: ret = "Full"; break;
+    case OP_EMPTY: return("Empty"); break;
+    case OP_CHARGING: return("Charging"); break;
+    case OP_DISCHARGING: return("Discharging"); break;
+    case OP_FULL: return("Full"); break;
   }
+
+  return("Unknown");
 }
 
 void sendStatus() {
@@ -105,14 +106,14 @@ void sendStatus() {
 
   lastStatusSent = getEpochTime();
   doc["time"] = lastStatusSent;
-  doc["temperature"] = (float)(temprature_sens_read() - 32) * 5 / 9;
+  doc["temperature"] = String((float)(temprature_sens_read() - 32) * 5 / 9, 1);
   int moisture = readSensorAbs();
   doc["moistureAbs"] = moisture;
   doc["moisture"] = convertSensorRel(moisture);
   int batt = readBattAbs();
-  doc["batteryAbs"] = batt;
-  doc["battery"] = convertBatteryRel(batt);
-  doc["batteryV"] = convertBatteryAbsToV(batt);
+  // doc["batteryAbs"] = batt;
+  doc["batteryPct"] = convertBatteryRel(batt);
+  doc["batteryV"] = String(convertBatteryAbsToV(batt), 2);
 
   doc["status"] = convertOpStatusToString(getOperationalStatus());
 
@@ -134,12 +135,15 @@ void setup()
   log_d("Enter");
   // put your setup code here, to run once:
 
+#if ARDUHAL_LOG_LEVEL > ARDUHAL_LOG_LEVEL_DEBUG
+  // In Debug mode we assume the battery is not connected (while USB is) and disable sleep on enpty battery
   if (getOperationalStatus() == OP_EMPTY) {
     log_e("Battery empty! Deep Sleep for %d seconds", TIME_TO_SLEEP);
     esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
     esp_deep_sleep_start();
   }
-  
+#endif
+
   log_d("Starting main setup");
   preventSleep();
   
@@ -166,9 +170,6 @@ void loop()
     esp_deep_sleep_start();
     
   }
-  
-  // Serial.print(readSensor());
-  // Serial.println("%");
 
   delay(500); // We don't want to burn too many CPU cycles, so sleep for 1/2 sec if not allowed to deep sleep
   log_d("Exit");
