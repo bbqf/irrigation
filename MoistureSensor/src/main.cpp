@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 
 #include "wifi_ops.h"
-#include "mqttRelay.h"
+#include "mqtt.h"
 
 #include "localConfig.h"
 
@@ -20,9 +20,22 @@
 const int AirValue = 2500;   //you need to replace this value with Value_1
 const int WaterValue = 1300;  //you need to replace this value with Value_2
 
-const int ChargingValue = 2000;  //you need to replace this value with Value_2
-const int EmptyValue = 1750;  //you need to replace this value with Value_2
+const int BatteryFullValue = 2350;  // Abs reading of full battery
+const int BatteryChargingValue = 2110;  // Abs reading of the battery when charging (from empty) starts
+const int BatteryEmptyValue = 1900;  // Abs reading of an empty battery = shutdown now!
 
+const int BatteryCorrectionValue = 252; // Correction for Abs to V conversion - might be dependent on the hardware
+
+enum OpStatus {
+  OP_EMPTY,
+  OP_CHARGING,
+  OP_DISCHARGING,
+  OP_FULL
+}
+
+float convertBatteryAbsToV(int batteryAbs) {
+  return ((batteryAbs - BatteryCorrectionValue)*2/1000);
+}
 
 #ifdef __cplusplus
 extern "C"
@@ -50,7 +63,7 @@ int readSensorAbs() {
 }
 
 int convertBatteryRel(int val) {
-  return(map(val, EmptyValue, ChargingValue, 0, 100));
+  return(map(val, BatteryEmptyValue, BatteryFullValue, 0, 100));
 }
 
 int readBattAbs() {
@@ -61,10 +74,32 @@ int readBattAbs() {
   return battValue;
 }
 
+const OpStatus getOperationalStatus() {
+  int batt = readBattAbs();
+  OpStatus status = OP_DISCHARGING;
+  if (batt <= BatteryEmptyValue) {
+    status = OP_EMPTY;
+  } else if (batt >= BatteryFullValue) {
+    status = OP_FULL;
+  }
+
+  return status;
+}
+
+const char * convertOpStatusToString(OpStatus status) {
+  char *ret = "";
+
+  switch (status) {
+    case OP_EMPTY: ret = "Empty"; break;
+    case OP_CHARGING: ret = "Charging"; break;
+    case OP_DISCHARGING: ret = "Discharging"; break;
+    case OP_FULL: ret = "Full"; break;
+  }
+}
 
 void sendStatus() {
   log_e("Enter");
-  const size_t capacity = JSON_OBJECT_SIZE(7) + 128;
+  const size_t capacity = JSON_OBJECT_SIZE(9) + 128;
   
   DynamicJsonDocument doc(capacity);
 
@@ -77,6 +112,9 @@ void sendStatus() {
   int batt = readBattAbs();
   doc["batteryAbs"] = batt;
   doc["battery"] = convertBatteryRel(batt);
+  doc["batteryV"] = convertBatteryAbsToV(batt);
+
+  doc["status"] = convertOpStatusToString(getOperationalStatus());
 
   uint16_t ret = publish(doc.as<String>().c_str());
   log_d("publish() returned: %d", ret);
@@ -92,10 +130,16 @@ const char * isSleepAllowedStr() {
 
 void setup()
 {
-  log_e("Enter");
-  // put your setup code here, to run once:
   Serial.begin(115200);
-  // pinMode(SENSOR_PIN, ANALOG);
+  log_d("Enter");
+  // put your setup code here, to run once:
+
+  if (getOperationalStatus() == OP_EMPTY) {
+    log_e("Battery empty! Deep Sleep for %d seconds", TIME_TO_SLEEP);
+    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+    esp_deep_sleep_start();
+  }
+  
   log_d("Starting main setup");
   preventSleep();
   
