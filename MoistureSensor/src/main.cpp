@@ -13,9 +13,9 @@
 #define BATT_PIN 34
 
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 60       /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP 1800       /* Time ESP32 will go to sleep (in seconds) */
 #define TIME_TO_COMM 3
-#define UPDATE_EVERY 1800 // How often to send updates in seconds
+#define UPDATE_EVERY 60 // How often to send updates in seconds
 
 const int AirValue = 1800;   //you need to replace this value with Value_1
 const int WaterValue = 850;  //you need to replace this value with Value_2
