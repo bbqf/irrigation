@@ -20,9 +20,9 @@
 const int AirValue = 1800;   //you need to replace this value with Value_1
 const int WaterValue = 850;  //you need to replace this value with Value_2
 
-const int BatteryFullValue = 2350;  // Abs reading of full battery
-const int BatteryChargingValue = 2110;  // Abs reading of the battery when charging (from empty) starts
-const int BatteryEmptyValue = 1900;  // Abs reading of an empty battery = shutdown now!
+const int BatteryFullValue = 2300;  // Abs reading of full battery
+const int BatteryChargingValue = 2220;  // Abs reading of the battery when charging (from empty) starts
+const int BatteryEmptyValue = 2000;  // Abs reading of an empty battery = shutdown now!
 
 const int BatteryCorrectionValue = 297; // Correction for Abs to V conversion - might be dependent on the hardware
 
@@ -76,6 +76,8 @@ const OpStatus getOperationalStatus() {
     status = OP_EMPTY;
   } else if (batt >= BatteryFullValue) {
     status = OP_FULL;
+  } else if (batt >= BatteryChargingValue) {
+    status = OP_CHARGING;
   }
 
   return status;
@@ -130,7 +132,7 @@ void setup()
   log_d("Enter");
   // put your setup code here, to run once:
 
-#if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_DEBUG
+#if ARDUHAL_LOG_LEVEL < ARDUHAL_LOG_LEVEL_DEBUG
   // In Debug mode we assume the battery is not connected (while USB is) and disable sleep on enpty battery
   if (getOperationalStatus() == OP_EMPTY) {
     log_e("Battery empty! Deep Sleep for %d seconds", TIME_TO_SLEEP);
