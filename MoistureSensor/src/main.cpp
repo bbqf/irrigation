@@ -16,13 +16,16 @@
 #define TIME_TO_SLEEP 1800       /* Time ESP32 will go to sleep (in seconds) */
 #define TIME_TO_COMM 3
 #define UPDATE_EVERY 60 // How often to send updates in seconds
+#define REV(x) #x
+
+const int cMeasurements = 5; // count of measurements to take to reduce the noise
 
 const int AirValue = 1800;   //you need to replace this value with Value_1
 const int WaterValue = 850;  //you need to replace this value with Value_2
 
-const int BatteryFullValue = 2300;  // Abs reading of full battery
-const int BatteryChargingValue = 2220;  // Abs reading of the battery when charging (from empty) starts
-const int BatteryEmptyValue = 2000;  // Abs reading of an empty battery = shutdown now!
+const int BatteryFullValue = 2310;  // Abs reading of full battery corresponds to 4.02v
+const int BatteryChargingValue = 2250;  // Abs reading of the battery when charging (from empty) starts, corresponds to 3.9v
+const int BatteryEmptyValue = 2000;  // Abs reading of an empty battery = shutdown now! Corresponds to 3.4v
 
 const int BatteryCorrectionValue = 297; // Correction for Abs to V conversion - might be dependent on the hardware
 
@@ -33,38 +36,65 @@ typedef  enum  {
   OP_FULL
 } OpStatus;
 
+int initialBatteryReading = 0;
+
+#include <stdio.h>
+
+// Functions does cMeausrements measures on the specified pin and returns the average cutting off max and min values
+uint16_t readAverage(int pin) {
+    uint16_t arr[cMeasurements] = {0};
+    uint16_t i, sum = 0, max = 0, min = -1, count = 0;
+    float avg;
+
+    // Find maximum and minimum values in the array
+    for (i = 0; i < cMeasurements; i++) {
+        arr[i] = analogRead(pin);
+        if (arr[i] > max) {
+            max = arr[i];
+        }
+        if (arr[i] < min) {
+            min = arr[i];
+        }
+        delay(10);
+    }
+
+    log_i("Max: %d, Min: %d", max, min);
+    // Calculate the sum of the array excluding the maximum and minimum values
+    for (i = 0; i < cMeasurements; i++) {
+        if (arr[i] != max && arr[i] != min) {
+            sum += arr[i];
+            count++;
+        }
+    }
+    log_i("Count: %d", count);
+    if (count==0) {
+      count=1;
+      sum=arr[0];
+    }
+    // Calculate the average
+    avg = (float) sum / count;
+
+    return (uint16_t) avg;
+}
+
 float convertBatteryAbsToV(int batteryAbs) {
   return ((float)(batteryAbs - BatteryCorrectionValue)*2/1000);
 }
 
-time_t lastStatusSent;
-
-int convertSensorRel(int val) {
-  int mapped = map(val, AirValue, WaterValue, 0, 100);
-  if (mapped < 0) {
-    mapped = 0;
-  } else if (mapped > 100) {
-    mapped = 100;
-  }
-  return(mapped);
-}
-
-int readSensorAbs() {
-  int soilMoistureValue = 0;
- 
-  soilMoistureValue = analogRead(SENSOR_PIN);  //put Sensor insert into soil
-  Serial.printf("MoistureAbs: %d\n", soilMoistureValue);
-  return soilMoistureValue;
-}
-
 int convertBatteryRel(int val) {
-  return(map(val, BatteryEmptyValue, BatteryFullValue, 0, 100));
+  int battPct = map(val, BatteryEmptyValue, BatteryFullValue, 0, 100);
+  if (battPct < 0) {
+    battPct = 0;
+  } else if (battPct > 100) {
+    battPct = 100;
+  }
+  return(battPct);
 }
 
 int readBattAbs() {
   int battValue = 0;
  
-  battValue = analogRead(BATT_PIN);  
+  battValue = readAverage(BATT_PIN);  
   Serial.printf("BatteryAbs: %d\n",battValue);
   return battValue;
 }
@@ -95,9 +125,30 @@ const char * convertOpStatusToString(OpStatus status) {
   return("Unknown");
 }
 
+time_t lastStatusSent;
+
+int convertSensorRel(int val) {
+  int mapped = map(val, AirValue, WaterValue, 0, 100);
+  if (mapped < 0) {
+    mapped = 0;
+  } else if (mapped > 100) {
+    mapped = 100;
+  }
+  return(mapped);
+}
+
+int readSensorAbs() {
+  int soilMoistureValue = 0;
+ 
+  soilMoistureValue = readAverage(SENSOR_PIN);
+
+  Serial.printf("MoistureAbs: %d\n", soilMoistureValue);
+  return soilMoistureValue;
+}
+
 void sendStatus() {
   log_e("Enter");
-  const size_t capacity = JSON_OBJECT_SIZE(9) + 128;
+  const size_t capacity = JSON_OBJECT_SIZE(10) + 128;
   
   DynamicJsonDocument doc(capacity);
 
@@ -108,11 +159,15 @@ void sendStatus() {
   doc["moistureAbs"] = moisture;
   doc["moisture"] = convertSensorRel(moisture);
   int batt = readBattAbs();
-  // doc["batteryAbs"] = batt;
+#if ARDUHAL_LOG_LEVEL >= ARDUHAL_LOG_LEVEL_DEBUG
+    doc["batteryAbs"] = batt;
+    doc["initialBatteryAbs"] = initialBatteryReading;
+#endif
   doc["batteryPct"] = convertBatteryRel(batt);
   doc["batteryV"] = String(convertBatteryAbsToV(batt), 2);
 
   doc["status"] = convertOpStatusToString(getOperationalStatus());
+  doc["version"] = REV(REVISION);
 
   uint16_t ret = publish(doc.as<String>().c_str());
   log_d("publish() returned: %d", ret);
@@ -128,6 +183,8 @@ const char * isSleepAllowedStr() {
 
 void setup()
 {
+  initialBatteryReading = readBattAbs();
+
   Serial.begin(115200);
   log_d("Enter");
   // put your setup code here, to run once:
