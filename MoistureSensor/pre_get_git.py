@@ -1,0 +1,1 @@
+head = open("../.git/", "w")
