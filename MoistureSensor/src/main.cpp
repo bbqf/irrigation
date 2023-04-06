@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 
+#include <Preferences.h>
+
 #include "wifi_ops.h"
 #include "mqtt.h"
 
@@ -20,8 +22,8 @@
 
 const int cMeasurements = 5; // count of measurements to take to reduce the noise
 
-const int AirValue = 1800;   //you need to replace this value with Value_1
-const int WaterValue = 850;  //you need to replace this value with Value_2
+const int AirValue = 2760;   //you need to replace this value with Value_1
+const int WaterValue = 900;  //you need to replace this value with Value_2
 
 const int BatteryFullValue = 2310;  // Abs reading of full battery corresponds to 4.02v
 const int BatteryChargingValue = 2250;  // Abs reading of the battery when charging (from empty) starts, corresponds to 3.9v
@@ -37,6 +39,8 @@ typedef  enum  {
 } OpStatus;
 
 int initialBatteryReading = 0;
+
+Preferences preferences;
 
 #include <stdio.h>
 
@@ -188,6 +192,9 @@ void setup()
   Serial.begin(115200);
   log_d("Enter");
   // put your setup code here, to run once:
+
+  preferences.begin("iot", true);
+  
 
 #if ARDUHAL_LOG_LEVEL < ARDUHAL_LOG_LEVEL_DEBUG
   // In Debug mode we assume the battery is not connected (while USB is) and disable sleep on enpty battery
