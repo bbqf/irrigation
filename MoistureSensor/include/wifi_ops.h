@@ -4,8 +4,6 @@
 typedef std::function<void()> onConnectCallBack;
 typedef void(*onConnCallBack)();
 
-extern Preferences preferences;
-
 void setupWiFi(onConnCallBack cb);
 time_t getEpochTime();
 

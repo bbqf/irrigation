@@ -2,34 +2,15 @@
 
 #include <ArduinoJson.h>
 
-#include <Preferences.h>
-
 #include "wifi_ops.h"
 #include "mqtt.h"
-
-#include "localConfig.h"
+#include "nvs_preferences.h"
 
 #include "globals.h"
 
-#define SENSOR_PIN 35
-#define BATT_PIN 34
-
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 1800       /* Time ESP32 will go to sleep (in seconds) */
-#define TIME_TO_COMM 3
-#define UPDATE_EVERY 60 // How often to send updates in seconds
+
 #define REV(x) #x
-
-const int cMeasurements = 5; // count of measurements to take to reduce the noise
-
-const int AirValue = 2760;   //you need to replace this value with Value_1
-const int WaterValue = 900;  //you need to replace this value with Value_2
-
-const int BatteryFullValue = 2310;  // Abs reading of full battery corresponds to 4.02v
-const int BatteryChargingValue = 2250;  // Abs reading of the battery when charging (from empty) starts, corresponds to 3.9v
-const int BatteryEmptyValue = 2000;  // Abs reading of an empty battery = shutdown now! Corresponds to 3.4v
-
-const int BatteryCorrectionValue = 297; // Correction for Abs to V conversion - might be dependent on the hardware
 
 typedef  enum  {
   OP_EMPTY,
@@ -40,18 +21,16 @@ typedef  enum  {
 
 int initialBatteryReading = 0;
 
-Preferences preferences;
-
 #include <stdio.h>
 
 // Functions does cMeausrements measures on the specified pin and returns the average cutting off max and min values
 uint16_t readAverage(int pin) {
-    uint16_t arr[cMeasurements] = {0};
+    uint16_t arr[getCMeasures()] = {0};
     uint16_t i, sum = 0, max = 0, min = -1, count = 0;
     float avg;
 
     // Find maximum and minimum values in the array
-    for (i = 0; i < cMeasurements; i++) {
+    for (i = 0; i < getCMeasures(); i++) {
         arr[i] = analogRead(pin);
         if (arr[i] > max) {
             max = arr[i];
@@ -64,7 +43,7 @@ uint16_t readAverage(int pin) {
 
     log_i("Max: %d, Min: %d", max, min);
     // Calculate the sum of the array excluding the maximum and minimum values
-    for (i = 0; i < cMeasurements; i++) {
+    for (i = 0; i < getCMeasures(); i++) {
         if (arr[i] != max && arr[i] != min) {
             sum += arr[i];
             count++;
@@ -82,11 +61,11 @@ uint16_t readAverage(int pin) {
 }
 
 float convertBatteryAbsToV(int batteryAbs) {
-  return ((float)(batteryAbs - BatteryCorrectionValue)*2/1000);
+  return ((float)(batteryAbs - getBattCorrValue())*2/1000);
 }
 
 int convertBatteryRel(int val) {
-  int battPct = map(val, BatteryEmptyValue, BatteryFullValue, 0, 100);
+  int battPct = map(val, getBattEmptyAbs(), getBattFullAbs(), 0, 100);
   if (battPct < 0) {
     battPct = 0;
   } else if (battPct > 100) {
@@ -98,7 +77,7 @@ int convertBatteryRel(int val) {
 int readBattAbs() {
   int battValue = 0;
  
-  battValue = readAverage(BATT_PIN);  
+  battValue = readAverage(getBatteryPin());  
   Serial.printf("BatteryAbs: %d\n",battValue);
   return battValue;
 }
@@ -106,11 +85,11 @@ int readBattAbs() {
 const OpStatus getOperationalStatus() {
   int batt = readBattAbs();
   OpStatus status = OP_DISCHARGING;
-  if (batt <= BatteryEmptyValue) {
+  if (batt <= getBattEmptyAbs()) {
     status = OP_EMPTY;
-  } else if (batt >= BatteryFullValue) {
+  } else if (batt >= getBattFullAbs()) {
     status = OP_FULL;
-  } else if (batt >= BatteryChargingValue) {
+  } else if (batt >= getBattChargeAbs()) {
     status = OP_CHARGING;
   }
 
@@ -132,7 +111,7 @@ const char * convertOpStatusToString(OpStatus status) {
 time_t lastStatusSent;
 
 int convertSensorRel(int val) {
-  int mapped = map(val, AirValue, WaterValue, 0, 100);
+  int mapped = map(val, getAirValue(), getWaterValue(), 0, 100);
   if (mapped < 0) {
     mapped = 0;
   } else if (mapped > 100) {
@@ -144,7 +123,7 @@ int convertSensorRel(int val) {
 int readSensorAbs() {
   int soilMoistureValue = 0;
  
-  soilMoistureValue = readAverage(SENSOR_PIN);
+  soilMoistureValue = readAverage(getSensorPin());
 
   Serial.printf("MoistureAbs: %d\n", soilMoistureValue);
   return soilMoistureValue;
@@ -174,7 +153,7 @@ void sendStatus() {
   doc["version"] = REV(REVISION);
 
   uint16_t ret = publish(doc.as<String>().c_str());
-  log_d("publish() returned: %d", ret);
+  log_d("publish(%s) returned: %d", doc.as<String>().c_str(), ret);
   if (ret == 0) {
     allowSleep();
   }
@@ -187,20 +166,20 @@ const char * isSleepAllowedStr() {
 
 void setup()
 {
-  initialBatteryReading = readBattAbs();
+  readPreferences();
 
   Serial.begin(115200);
   log_d("Enter");
   // put your setup code here, to run once:
 
-  preferences.begin("iot", true);
-  
+  initialBatteryReading = readBattAbs();
+
 
 #if ARDUHAL_LOG_LEVEL < ARDUHAL_LOG_LEVEL_DEBUG
   // In Debug mode we assume the battery is not connected (while USB is) and disable sleep on enpty battery
   if (getOperationalStatus() == OP_EMPTY) {
-    log_e("Battery empty! Deep Sleep for %d seconds", TIME_TO_SLEEP);
-    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+    log_e("Battery empty! Deep Sleep for %d seconds", getTimeToSleep());
+    esp_sleep_enable_timer_wakeup(getTimeToSleep() * uS_TO_S_FACTOR);
     esp_deep_sleep_start();
   }
 #endif
@@ -218,16 +197,16 @@ void loop()
 {
   log_d("Enter. sleepAllowed: %s", isSleepAllowedStr());
  
-  if ((lastStatusSent == 0 || lastStatusSent + UPDATE_EVERY <= getEpochTime())) {
+  if ((lastStatusSent == 0 || lastStatusSent + getUpdatePeriod() <= getEpochTime())) {
     sendStatus();
   }
   
   if (isSleepAllowed()) {
-    log_i("Sleeping for %d seconds to complete async communication", TIME_TO_COMM);
-    delay(TIME_TO_COMM * 1000);
+    log_i("Sleeping for %d seconds to complete async communication", getTimeToComm());
+    delay(getTimeToComm() * 1000);
     
-    log_i("Deep Sleep for %d seconds", TIME_TO_SLEEP);
-    esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+    log_i("Deep Sleep for %d seconds", getTimeToSleep());
+    esp_sleep_enable_timer_wakeup(getTimeToSleep() * uS_TO_S_FACTOR);
     esp_deep_sleep_start();
     
   }

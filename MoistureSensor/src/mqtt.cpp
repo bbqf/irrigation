@@ -3,7 +3,8 @@
 
 #include "main.h"
 #include "mqtt.h"
-#include "localConfig.h"
+#include "nvs_preferences.h"
+
 #include "globals.h"
 
 
@@ -15,7 +16,7 @@ void onConnect(bool sessionPresent) {
 }
 
 uint16_t publish(const char* payload) {
-    return(mqtt.publish(MQTT_STATUS_TOPIC, 0, false, payload));
+    return(mqtt.publish(getMqttStatTopic(), 0, false, payload));
 }
 
 bool isMQTTConnected() {
@@ -28,8 +29,8 @@ void setupMQTT() {
     log_d("Enter");
     preventSleep();
 
-    mqtt.setClientId(MQTT_CLIENT_ID);
-    mqtt.setServer(MQTT_HOST, MQTT_PORT);
+    mqtt.setClientId(getMqttClientId());
+    mqtt.setServer(getMqttHost(), getMqttPort());
  
     // Set callbacks
     mqtt.onConnect(onConnect); // basically this is only not to go into deep sleep while connecting.

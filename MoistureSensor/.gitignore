@@ -3,7 +3,6 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-include/localConfig.h
 config/*.csv
 config/csv
 config/bin
