@@ -10,4 +10,4 @@
 ## Flashing
 1. Flash the resulted `bin/MS-1.bin` file with the esptool.py at the address **0x9000**
     
-    esptool.py write_flash 0x9000 bin\MS-1.bin
+    esptool.py -p COM9 write_flash 0x9000 bin\MS-1.bin
