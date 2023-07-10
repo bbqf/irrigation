@@ -136,7 +136,7 @@ void sendStatus() {
   DynamicJsonDocument doc(capacity);
 
   lastStatusSent = getEpochTime();
-  doc["time"] = lastStatusSent;
+  //doc["time"] = lastStatusSent;
   doc["temperature"] = String(temperatureRead(), 1);
   int moisture = readSensorAbs();
   doc["moistureAbs"] = moisture;
