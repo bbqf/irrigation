@@ -4,14 +4,15 @@
 #include <NTPClient.h>
 
 #include "wifi_ops.h"
-#include "localConfig.h"
+
+#include "nvs_preferences.h"
 
 bool doNotSleep;
 
 onConnCallBack onConnCB;
 
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, NTP_POOL, 3600);
+NTPClient timeClient(ntpUDP, getNtpServer(), 3600);
 
 void WiFionStationConnected(WiFiEvent_t event, WiFiEventInfo_t info);
 void WiFionGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
@@ -39,7 +40,7 @@ void setupWiFi(onConnCallBack cb)
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   WiFi.setSleep(false);
-  WiFi.begin(ssid, password);
+  WiFi.begin(getSSID(), getPassword());
   WiFi.onEvent(WiFionGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
   WiFi.onEvent(WiFionStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   while (!WiFi.isConnected())
@@ -73,7 +74,7 @@ void WiFionStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
   //  Serial.println("Waiting for 10s");
   log_e("WiFi lost connection. Reason: %d", info.wifi_sta_disconnected.reason);
   log_i("Trying to Reconnect");
-  WiFi.begin(ssid, password);
+  WiFi.begin(getSSID(), getPassword());
 }
 
 

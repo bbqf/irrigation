@@ -4,17 +4,13 @@
 
 #include "wifi_ops.h"
 #include "mqtt.h"
-
-#include "localConfig.h"
+#include "nvs_preferences.h"
 
 #include "globals.h"
 
-#define RELAY_PIN 4
-
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 60       /* Time ESP32 will go to sleep (in seconds) */
-#define TIME_TO_COMM 3
-#define UPDATE_EVERY 10 // How often to send updates in seconds
+
+#define REV(x) #x
 
 #ifdef __cplusplus
 extern "C"
@@ -51,7 +47,7 @@ void sendStatus() {
 
 void relayOn()
 {
-  digitalWrite(RELAY_PIN, LOW);
+  digitalWrite(getRelayPin(), HIGH);
   isRelayOn = true;
   Serial.println("RELAY is on");
   sendStatus();
@@ -59,7 +55,7 @@ void relayOn()
 
 void relayOff()
 {
-  digitalWrite(RELAY_PIN, HIGH);
+  digitalWrite(getRelayPin(), LOW );
   isRelayOn = false;
   Serial.println("RELAY is off");
   sendStatus();
@@ -75,7 +71,7 @@ void setup()
   log_e("Enter");
   // put your setup code here, to run once:
   Serial.begin(115200);
-  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(getRelayPin(), OUTPUT);
   log_d("Starting main setup");
   preventSleep();
   isRelayOn = false;
@@ -93,21 +89,21 @@ void setup()
 void loop()
 {
   log_d("Enter. isRelayOn=%s, sleepAllowed: %s", isRelayOn ? "true" : "false", isSleepAllowedStr());
-  // log_d("lastStatusSent=%d, getEpochTime()=%d, delta=%d", lastStatusSent, getEpochTime(), getEpochTime() - lastStatusSent);
-  if ((lastStatusSent == 0 || lastStatusSent + UPDATE_EVERY <= getEpochTime())) {
+  if ((lastStatusSent == 0 || lastStatusSent + getUpdatePeriod() <= getEpochTime())) {
     sendStatus();
   }
+
   if (!isRelayOn) { // Do not sleep at all if Relay is on
     while (!isSleepAllowed()) // If Relay is off, we wait until all communication/operations are completed. Warning: wait is endless!
     {
       delay(500);
     }
 
-    log_i("Sleeping for %d seconds to complete async communication", TIME_TO_COMM);
-    delay(TIME_TO_COMM * 1000);
+    log_i("Sleeping for %d seconds to complete async communication", getTimeToComm());
+    delay(getTimeToComm() * 1000);
     if (!isRelayOn) { // Important: check if relay has just been turned on.
-      log_i("Deep Sleep for %d seconds", TIME_TO_SLEEP);
-      esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+      log_i("Deep Sleep for %d seconds", getTimeToSleep() );
+      esp_sleep_enable_timer_wakeup(getTimeToSleep()  * uS_TO_S_FACTOR);
       esp_deep_sleep_start();
     }
   }

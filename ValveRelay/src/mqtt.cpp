@@ -3,7 +3,9 @@
 
 #include "main.h"
 #include "mqtt.h"
-#include "localConfig.h"
+
+#include "nvs_preferences.h"
+
 #include "globals.h"
 
 
@@ -28,11 +30,11 @@ void onConnect(bool sessionPresent) {
 }
 
 void subscribeToCommand() {
-    mqtt.subscribe(MQTT_COMMAND_TOPIC, 2);
+    mqtt.subscribe(getMqttControlTopic(), 2);
 }
 
 uint16_t publish(const char* payload) {
-    return(mqtt.publish(MQTT_STATUS_TOPIC, 0, false, payload));
+    return(mqtt.publish(getMqttStatTopic(), 0, false, payload));
 }
 
 bool isMQTTConnected() {
@@ -46,8 +48,8 @@ void setupMQTT() {
     preventSleep();
     bool wakeFromSleep = esp_sleep_get_wakeup_cause() != 0; // if 0 it means reboot, everything rest is some kind of wakeup
     
-    mqtt.setClientId(MQTT_CLIENT_ID);
-    mqtt.setServer(MQTT_HOST, MQTT_PORT);
+    mqtt.setClientId(getMqttClientId());
+    mqtt.setServer(getMqttHost(), getMqttPort());
     if (wakeFromSleep == 0) { // After full reboot clean all messages in the queue first, we don't want to process any messages that are weeks old. 
     // Another option would be to introduce expiry time in messages.
         log_i("Cleaning queue for client '%s'", mqtt.getClientId());
