@@ -75,7 +75,7 @@ void readIOT()
 void readSensor() {
     Preferences preferences;
 
-    if (preferences.begin("moistureSensor")) {
+    if (preferences.begin("valveRelay")) {
 
         prefs.cMeasures = preferences.getUShort("cMeasures");
         prefs.battFullAbs = preferences.getUShort("battFullAbs");
@@ -90,7 +90,7 @@ void readSensor() {
 
         preferences.end();
     } else {
-        log_e("Cannot read preferences from the namespace moistureSensor");
+        log_e("Cannot read preferences from the namespace valveRelay");
     }
     log_d("Read preferences:");
     log_d("cMeasures=%d", getCMeasures());
@@ -98,7 +98,7 @@ void readSensor() {
     log_d("battChargeAbs=%d", getBattChargeAbs());
     log_d("battEmptyAbs=%d", getBattEmptyAbs());
     log_d("battCorrValue=%d", getBattCorrValue());
-    log_d("sensorPin=%d", getRelayPin());
+    log_d("relayPin=%d", getRelayPin());
     log_d("batteryPin=%d", getBatteryPin());
     log_d("mqttClientId=%s", getMqttClientId());
     log_d("mqttStatTopic=%s", getMqttStatTopic());

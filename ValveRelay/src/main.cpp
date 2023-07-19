@@ -68,9 +68,10 @@ const char * isSleepAllowedStr() {
 
 void setup()
 {
-  log_e("Enter");
-  // put your setup code here, to run once:
+  readPreferences();
+
   Serial.begin(115200);
+  log_e("Enter");
   pinMode(getRelayPin(), OUTPUT);
   log_d("Starting main setup");
   preventSleep();
